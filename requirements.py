@@ -1,0 +1,15 @@
+fastapi
+greenlet
+python-multipart
+pydantic
+pydantic-settings
+sqlalchemy[asyncio]
+aiosqlite
+uvicorn[standard]
+streamlit
+requests
+langchain-community 
+langchain-text-splitters
+langchain_huggingface
+sentence-transformers
+langchain-chroma
