@@ -1,0 +1,12 @@
+.git
+.venv
+.env
+.env.*
+__pycache__
+*.pyc
+*.db
+.coverage
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.import_linter_cache
