@@ -11,7 +11,8 @@ protect checkout, and optimistic versions detect conflicting conversation saves.
 ```bash
 uv sync --frozen
 cp .env.example .env
-# Set OPENAI_API_KEY in .env. Never commit .env.
+# Provide OPENROUTER_TOKEN via your Codespaces secret or environment.
+# Never commit .env or tokens.
 uv run alembic upgrade head
 uv run python -m app.cli ingest \
   --products data/sample/products.csv --knowledge data/sample/knowledge
@@ -33,7 +34,35 @@ provides its standard schema/docs routes. `/health` is public and reports databa
 availability. `/chat` creates an unknown client-supplied UUID on first use.
 Request IDs are echoed/generated in `X-Request-ID` and included in errors.
 
-## Configuration
+## Streamlit frontend
+
+Keep the API running in one terminal:
+
+```bash
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+In another terminal, launch the optional frontend:
+
+```bash
+uv sync --extra ui
+uv run --extra ui streamlit run streamlit_app.py
+```
+
+Open http://localhost:8501 (forward port 8501 in Codespaces). The sidebar defaults
+to `http://localhost:8000`; set the URL of the backend as reachable from the
+Streamlit server, not from your browser. You can also set `SALESBOT_API_URL`.
+Enter the backend's optional API key in the password field, or export `API_KEY`
+before launching. The UI does not automatically load `.env`.
+
+The UI keeps chat history and a conversation UUID in Streamlit session state,
+shows the last returned cart and handoff status, and displays API errors. New
+conversation resets only the UI session; it does not cancel old carts or orders.
+There are no automatic retries, especially after uncertain checkout timeouts.
+Use HTTPS when connecting to a remote backend with an API key. Keep this simple
+development UI private; it is not a customer authentication layer.
+
+## Backend configuration
 
 [.env.example](.env.example) lists every settings variable and its default.
 Settings are case-insensitive; arrays use JSON, e.g.
@@ -42,10 +71,42 @@ Empty environment values are ignored so optional keys can remain blank.
 
 - SQLite is the local default; production uses PostgreSQL 16 with
   `DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST/DB`.
-- `DEFAULT_PROVIDER` defaults to `openai`. Configure `OPENAI_API_KEY` and/or
-  `ANTHROPIC_API_KEY`, then select a default and optional fallbacks.
-- Embeddings use OpenAI, including when Anthropic generates replies:
-  `OPENAI_API_KEY` is required for catalogue/policy retrieval and ingestion.
+- `DEFAULT_PROVIDER` defaults to `openrouter`. `OPENROUTER_TOKEN` is read directly
+  from the environment, including GitHub Codespaces secrets available to this
+  Codespace. Actions-only secrets are not automatically available in Codespaces.
+  Add/reload the Codespaces secret if necessary, then restart the backend.
+- `OPENROUTER_MODEL=openrouter/free` uses OpenRouter's
+  [free router](https://openrouter.ai/docs/guides/routing/routers/free-router),
+  which selects a free model supporting the request's features, including tools.
+  Availability, latency, quality, and rate limits vary. No paid fallback is enabled
+  by default. To pin a free model, set a currently available `:free` model ID that
+  supports tools; do not use `openrouter/auto` if you require free-only inference.
+- OpenAI and Anthropic generation remain available by selecting `openai` or
+  `anthropic` and supplying their respective keys. Explicitly configured paid
+  fallback providers can incur charges.
+- Google Gemini is available directly (not through OpenRouter) using
+  `DEFAULT_PROVIDER=gemini`, `GOOGLE_TOKEN` (a Google AI Studio API key), and
+  `GEMINI_MODEL=gemini-2.5-flash`. It uses Google's
+  [OpenAI-compatible endpoint](https://ai.google.dev/gemini-api/docs/openai),
+  so no additional SDK is required. Set `GOOGLE_TOKEN` as a Codespaces environment
+  secret or in your untracked `.env`, then restart the backend. Compose passes
+  these variables through as well. OpenRouter remains the default unless changed.
+  To use Gemini only as fallback, set `FALLBACK_PROVIDERS=["gemini"]`.
+  Google model availability, quotas, free-tier eligibility, and billing depend on
+  your project; this integration does not guarantee free usage.
+  Keep the 2.5 default for tool use; Gemini 3+ thought-signature round trips are
+  not supported by this adapter yet. Embeddings are independent, so switching
+  only the LLM provider does not require re-ingestion.
+- `EMBEDDING_PROVIDER=local` runs FastEmbed on CPU using
+  `LOCAL_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5`. Its model files download on first
+  embedding use, so that first ingestion/search needs internet and can take longer.
+  Later embeddings run locally with no API key or per-request API charge. The
+  default model is English-oriented; Nepali retrieval quality is limited.
+- To keep OpenAI embeddings, set `EMBEDDING_PROVIDER=openai`,
+  `EMBEDDING_MODEL=text-embedding-3-small`, and `OPENAI_API_KEY`.
+  **Re-ingest all catalogue and knowledge records after switching embedding
+  providers/models.** Old vectors are not compatible; product hashes include the
+  selected model. Remove obsolete records separately so old vectors are not mixed.
 - `API_KEY`, when non-empty, requires `X-API-Key` on `/chat`. Set it before
   exposing the service. Put TLS, rate limits, and per-customer authorization at
   the deployment boundary; conversation UUIDs alone are not authorization.
@@ -54,8 +115,8 @@ Empty environment values are ignored so optional keys can remain blank.
 - Dev/test startup creates missing tables; production runs migrations explicitly.
 - `ENABLE_FAKE_PROVIDER=true` registers the scripted `fake` provider. It has no
   built-in script and reports provider exhaustion until configured in code/tests.
-  Offline tests override both the LLM and embedder; there is deliberately no local
-  embedding fallback.
+  Offline tests override both the LLM and embedder. Local embeddings are explicitly
+  configured, never used as a silent fallback after a provider failure.
 
 The sample data is illustrative shop policy and pricing, not a live business feed.
 Ingestion overwrites stock fields from the CSV: do not re-ingest stale stock while
@@ -91,8 +152,10 @@ domain conflicts 409, provider failures 502/503, and unexpected failures a gener
 ## Docker / PostgreSQL
 
 Set `POSTGRES_PASSWORD` to a strong alphanumeric password (to remain URL-safe),
-and set `OPENAI_API_KEY` in your environment or untracked `.env`. Optionally set
-`ANTHROPIC_API_KEY`, `DEFAULT_PROVIDER`, `FALLBACK_PROVIDERS`, and `API_KEY`.
+and set `OPENROUTER_TOKEN` in your environment or untracked `.env`. Optionally set
+`OPENROUTER_MODEL`, `DEFAULT_PROVIDER`, `FALLBACK_PROVIDERS`, and `API_KEY`.
+Compose passes local embedding settings through too; the model cache is inside
+the container unless you configure a persistent cache mount.
 
 ```bash
 docker compose up --build -d

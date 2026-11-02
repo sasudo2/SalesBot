@@ -22,7 +22,14 @@ services:
       APP_ENV: prod
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      DEFAULT_PROVIDER: ${DEFAULT_PROVIDER:-openai}
+      OPENROUTER_TOKEN: ${OPENROUTER_TOKEN:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
+      GOOGLE_TOKEN: ${GOOGLE_TOKEN:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      DEFAULT_PROVIDER: ${DEFAULT_PROVIDER:-openrouter}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+      LOCAL_EMBEDDING_MODEL: ${LOCAL_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
       FALLBACK_PROVIDERS: ${FALLBACK_PROVIDERS:-[]}
       API_KEY: ${API_KEY:-}
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"

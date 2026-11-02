@@ -70,6 +70,7 @@ def test_provider_dependencies():
         default_provider="fake",
         openai_api_key="test-openai",
         anthropic_api_key="test-anthropic",
+        embedding_provider="openai",
     )
     with (
         patch("app.api.deps.OpenAIProvider") as openai,
@@ -87,7 +88,7 @@ def test_provider_dependencies():
     with pytest.raises(RuntimeError, match="default"):
         get_llm_register(Settings(_env_file=None, default_provider="missing"))
     with pytest.raises(ProviderError, match="required"):
-        get_embedder(Settings(_env_file=None, openai_api_key=None))
+        get_embedder(Settings(_env_file=None, openai_api_key=None, embedding_provider="openai"))
     assert get_tool_registry() is get_tool_registry()
     _llm_register.cache_clear()
 

@@ -12,9 +12,12 @@ from app.domain.enums import ToolErrorCode
 from app.domain.errors import AppError, ProviderError
 from app.llm.anthropic_provider import AnthropicProvider
 from app.llm.fake_provider import FakeProvider
+from app.llm.gemini_provider import GeminiProvider
 from app.llm.openai_provider import OpenAIProvider
+from app.llm.openrouter_provider import OpenRouterProvider
 from app.llm.register import LLMProviderRegister
 from app.rag.base import Embedder
+from app.rag.local_embedder import LocalEmbedder
 from app.rag.openai_embedder import OpenAIEmbedder
 from app.tools import build_tool_registry
 from app.tools.registry import ToolRegistry
@@ -39,6 +42,24 @@ def get_db() -> Iterator[Session]:
 def _llm_register(settings_json: str) -> LLMProviderRegister:
     settings = Settings.model_validate_json(settings_json)
     register = LLMProviderRegister(settings.default_provider, settings.fallback_providers)
+    if settings.google_token:
+        register.register(
+            "gemini",
+            lambda: GeminiProvider(
+                settings.google_token or "",
+                settings.gemini_model,
+                settings.provider_timeout_s,
+            ),
+        )
+    if settings.openrouter_token:
+        register.register(
+            "openrouter",
+            lambda: OpenRouterProvider(
+                settings.openrouter_token or "",
+                settings.openrouter_model,
+                settings.provider_timeout_s,
+            ),
+        )
     if settings.openai_api_key:
         register.register(
             "openai",
@@ -68,7 +89,14 @@ def get_llm_register(
     return _llm_register(settings.model_dump_json())
 
 
+@lru_cache
+def _local_embedder(model: str) -> LocalEmbedder:
+    return LocalEmbedder(model)
+
+
 def get_embedder(settings: Annotated[Settings, Depends(get_settings)]) -> Embedder:
+    if settings.embedding_provider == "local":
+        return _local_embedder(settings.local_embedding_model)
     if not settings.openai_api_key:
         raise ProviderError("An OpenAI API key is required for embeddings")
     return OpenAIEmbedder(settings.openai_api_key, settings.embedding_model)

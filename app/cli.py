@@ -50,7 +50,12 @@ def _main() -> None:
         for path in sorted(args.knowledge.glob("*/*.md"))
     ]
     with get_sessionmaker()() as db:
-        count = ingest_products(db, embedder, products, settings.embedding_model)
+        model = (
+            settings.local_embedding_model
+            if settings.embedding_provider == "local"
+            else settings.embedding_model
+        )
+        count = ingest_products(db, embedder, products, model)
         count += ingest_knowledge(db, embedder, docs)
         db.commit()
     logger.info("Wrote %d rows", count)

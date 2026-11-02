@@ -22,9 +22,19 @@ logger = logging.getLogger(__name__)
 class OpenAIProvider:
     name = "openai"
 
-    def __init__(self, api_key: str, model: str, timeout: float, max_retries: int = 2) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        timeout: float,
+        max_retries: int = 2,
+        *,
+        base_url: str | None = None,
+    ) -> None:
         self.model = model
-        self.client = OpenAI(api_key=api_key, timeout=timeout, max_retries=max_retries)
+        self.client = OpenAI(
+            api_key=api_key, timeout=timeout, max_retries=max_retries, base_url=base_url
+        )
 
     def complete(
         self, messages: Sequence[Message], tools: Sequence[ToolSpec], **opts: Any
@@ -80,7 +90,9 @@ class OpenAIProvider:
         try:
             response = self.client.chat.completions.create(**params)
         except OpenAIError as exc:
-            raise ProviderError("OpenAI request failed") from exc
+            raise ProviderError(f"{self.name} request failed") from exc
+        if not response.choices:
+            raise ProviderError(f"{self.name} returned no completion choices")
         result = response.choices[0].message
         calls: list[ToolCall] = []
         for call in result.tool_calls or []:
@@ -89,10 +101,10 @@ class OpenAIProvider:
             try:
                 arguments = json.loads(call.function.arguments)
             except json.JSONDecodeError:
-                logger.warning("OpenAI returned malformed tool arguments")
+                logger.warning("%s returned malformed tool arguments", self.name)
                 arguments = {}
             if not isinstance(arguments, dict):
-                logger.warning("OpenAI returned non-object tool arguments")
+                logger.warning("%s returned non-object tool arguments", self.name)
                 arguments = {}
             calls.append(ToolCall(id=call.id, name=call.function.name, arguments=arguments))
         return LLMResponse(
