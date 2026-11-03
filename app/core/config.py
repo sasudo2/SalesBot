@@ -11,21 +11,23 @@ class Settings(BaseSettings):
 
     app_env: Literal["dev", "test", "prod"] = "dev"
     database_url: str = "sqlite:///./sales_agent.db"
-    default_provider: str = "gemini"
+    default_provider: str = "nvidia"
     fallback_providers: list[str] = []
     enable_fake_provider: bool = False
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
+    nvidia_key: str | None = None
+    nvidia_model: str = "nvidia/nemotron-3.5-super-vl-120b-a12b"
     openrouter_token: str | None = None
     openrouter_model: str = "gemini-2.5-flash"
     google_token: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
     openai_model: str = "gpt-4o-mini"
     anthropic_model: str = "claude-sonnet-5-5"
     embedding_model: str = "text-embedding-3-small"
     embedding_provider: Literal["local", "openai"] = "local"
     local_embedding_model: str = "BAAI/bge-small-en-v1.5"
-    provider_timeout_s: float = 30.0
+    provider_timeout_s: float = 60.0
     llm_temperature: float = 0.2
     llm_max_tokens: int = 1024
     max_agent_iterations: int = 20

@@ -8,7 +8,7 @@ from openai import OpenAI
 from app.api.deps import _llm_register, get_llm_register
 from app.core.config import Settings
 from app.domain.enums import MessageRole
-from app.domain.errors import ProviderError
+from app.domain.errors import AllProvidersFailedError, ProviderError
 from app.domain.models import Message
 from app.llm.fake_provider import FakeProvider
 from app.llm.gemini_provider import GeminiProvider
@@ -89,8 +89,8 @@ def test_gemini_tool_round_trip():
         assert "tools" not in second
 
 
-@pytest.mark.parametrize("status", [400, 401, 403, 429, 503])
-def test_gemini_errors_and_fallback(status):
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 429, 503])
+def test_gemini_errors_and_fallback(status, caplog):
     with httpx.Client(
         transport=httpx.MockTransport(
             lambda request: httpx.Response(status, json={"error": {"message": "unavailable"}})
@@ -104,12 +104,39 @@ def test_gemini_errors_and_fallback(status):
             http_client=transport,
             max_retries=0,
         )
-        with pytest.raises(ProviderError, match="gemini request failed"):
+        with pytest.raises(ProviderError, match="gemini request failed") as failure:
             provider.complete([], [])
         register = LLMProviderRegister("gemini", ["fake"])
         register.register("gemini", lambda: provider)
         register.register("fake", lambda: FakeProvider([LLMResponse(content="fallback")]))
         assert register.complete(None, [], []).content == "fallback"
+        assert "LLM provider gemini failed" in caplog.text
+        assert "model=gemini-2.5-flash" in caplog.text
+        assert f"error={type(failure.value.__cause__).__name__}" in caplog.text
+        assert f"status={status}" in caplog.text
+        assert "unavailable" not in caplog.text
+        assert "trying fallback" not in caplog.text
+
+
+def test_gemini_connection_failure_logging(caplog):
+    def handle(request):
+        raise httpx.ConnectError("sensitive upstream details", request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as transport:
+        provider = GeminiProvider("test", max_retries=0)
+        provider.client.close()
+        provider.client = OpenAI(api_key="test", http_client=transport, max_retries=0)
+        register = LLMProviderRegister("gemini", [])
+        register.register("gemini", lambda: provider)
+        with pytest.raises(AllProvidersFailedError, match="All LLM providers failed"):
+            register.complete(None, [], [])
+        assert "error=APIConnectionError, status=None" in caplog.text
+        assert "sensitive upstream details" not in caplog.text
+
+
+def test_gemini_default_model(monkeypatch):
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    assert Settings(_env_file=None).gemini_model == "gemini-3.8-flash"
 
 
 def test_gemini_environment_registration(monkeypatch):

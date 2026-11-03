@@ -13,6 +13,7 @@ from app.domain.errors import AppError, ProviderError
 from app.llm.anthropic_provider import AnthropicProvider
 from app.llm.fake_provider import FakeProvider
 from app.llm.gemini_provider import GeminiProvider
+from app.llm.nvidia_provider import NvidiaProvider
 from app.llm.openai_provider import OpenAIProvider
 from app.llm.openrouter_provider import OpenRouterProvider
 from app.llm.register import LLMProviderRegister
@@ -42,6 +43,15 @@ def get_db() -> Iterator[Session]:
 def _llm_register(settings_json: str) -> LLMProviderRegister:
     settings = Settings.model_validate_json(settings_json)
     register = LLMProviderRegister(settings.default_provider, settings.fallback_providers)
+    if settings.nvidia_key:
+        register.register(
+            "nvidia",
+            lambda: NvidiaProvider(
+                settings.nvidia_key or "",
+                settings.nvidia_model,
+                settings.provider_timeout_s,
+            ),
+        )
     if settings.google_token:
         register.register(
             "gemini",

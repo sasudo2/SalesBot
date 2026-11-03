@@ -38,6 +38,14 @@ class LLMProviderRegister:
                 response.provider = response.provider or provider.name
                 response.model = response.model or str(getattr(provider, "model", provider.name))
                 return response
-            except ProviderError:
-                logger.warning("LLM provider %s failed; trying fallback", candidate)
+            except ProviderError as exc:
+                cause = exc.__cause__ or exc
+                instance = self._instance.get(candidate)
+                logger.warning(
+                    "LLM provider %s failed (model=%s, error=%s, status=%s)",
+                    candidate,
+                    getattr(instance, "model", "unknown"),
+                    type(cause).__name__,
+                    getattr(cause, "status_code", None),
+                )
         raise AllProvidersFailedError("All LLM providers failed")

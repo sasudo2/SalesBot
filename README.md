@@ -11,7 +11,7 @@ protect checkout, and optimistic versions detect conflicting conversation saves.
 ```bash
 uv sync --frozen
 cp .env.example .env
-# Provide OPENROUTER_TOKEN via your Codespaces secret or environment.
+# Provide NVIDIA_KEY via your Codespaces secret or environment.
 # Never commit .env or tokens.
 uv run alembic upgrade head
 uv run python -m app.cli ingest \
@@ -71,16 +71,23 @@ Empty environment values are ignored so optional keys can remain blank.
 
 - SQLite is the local default; production uses PostgreSQL 16 with
   `DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST/DB`.
-- `DEFAULT_PROVIDER` defaults to `openrouter`. `OPENROUTER_TOKEN` is read directly
+- `DEFAULT_PROVIDER` defaults to `nvidia`. `NVIDIA_KEY` is read directly
   from the environment, including GitHub Codespaces secrets available to this
   Codespace. Actions-only secrets are not automatically available in Codespaces.
   Add/reload the Codespaces secret if necessary, then restart the backend.
+- `NVIDIA_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b` selects the default NVIDIA model.
+  NVIDIA uses `https://integrate.api.nvidia.com/v1` through the existing OpenAI
+  SDK, including tool calls and built-in retries. Set `NVIDIA_MODEL` to another
+  tool-capable model available to your key if needed. Availability, quotas, and
+  billing depend on your NVIDIA account. To use NVIDIA only as a fallback, select
+  another default provider and set `FALLBACK_PROVIDERS=["nvidia"]`.
 - `OPENROUTER_MODEL=openrouter/free` uses OpenRouter's
   [free router](https://openrouter.ai/docs/guides/routing/routers/free-router),
   which selects a free model supporting the request's features, including tools.
   Availability, latency, quality, and rate limits vary. No paid fallback is enabled
   by default. To pin a free model, set a currently available `:free` model ID that
   supports tools; do not use `openrouter/auto` if you require free-only inference.
+  Select `DEFAULT_PROVIDER=openrouter` and supply `OPENROUTER_TOKEN` to use it.
 - OpenAI and Anthropic generation remain available by selecting `openai` or
   `anthropic` and supplying their respective keys. Explicitly configured paid
   fallback providers can incur charges.
@@ -90,7 +97,7 @@ Empty environment values are ignored so optional keys can remain blank.
   [OpenAI-compatible endpoint](https://ai.google.dev/gemini-api/docs/openai),
   so no additional SDK is required. Set `GOOGLE_TOKEN` as a Codespaces environment
   secret or in your untracked `.env`, then restart the backend. Compose passes
-  these variables through as well. OpenRouter remains the default unless changed.
+  these variables through as well. NVIDIA remains the default unless changed.
   To use Gemini only as fallback, set `FALLBACK_PROVIDERS=["gemini"]`.
   Google model availability, quotas, free-tier eligibility, and billing depend on
   your project; this integration does not guarantee free usage.
@@ -152,8 +159,8 @@ domain conflicts 409, provider failures 502/503, and unexpected failures a gener
 ## Docker / PostgreSQL
 
 Set `POSTGRES_PASSWORD` to a strong alphanumeric password (to remain URL-safe),
-and set `OPENROUTER_TOKEN` in your environment or untracked `.env`. Optionally set
-`OPENROUTER_MODEL`, `DEFAULT_PROVIDER`, `FALLBACK_PROVIDERS`, and `API_KEY`.
+and set `NVIDIA_KEY` in your environment or untracked `.env`. Optionally set
+`NVIDIA_MODEL`, `DEFAULT_PROVIDER`, `FALLBACK_PROVIDERS`, and `API_KEY`.
 Compose passes local embedding settings through too; the model cache is inside
 the container unless you configure a persistent cache mount.
 
